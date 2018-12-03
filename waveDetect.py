@@ -560,6 +560,64 @@ def QRSdetection(necg,Fs):
 
 	return R_loc,QRS_width,Q_loc,S_loc,lp_ecg
 
+def extractFeatures(target_signal_total,R_loc_total,Q_loc_total,S_loc_total,T_peak_total,T_onset_total,T_end_total,P_peak_total,P_onset_total,P_end_total,Fs):
+	R_loc_total = R_loc_total.astype(np.int) - 1
+	Q_loc_total = Q_loc_total.astype(np.int) - 1
+	S_loc_total = S_loc_total.astype(np.int) - 1
+	T_peak_total = T_peak_total.astype(np.int) - 1
+	T_onset_total = T_onset_total.astype(np.int) - 1
+	T_end_total = T_end_total.astype(np.int) - 1
+	P_peak_total = P_peak_total.astype(np.int) - 1
+	P_onset_total = P_onset_total.astype(np.int) - 1
+	P_end_total = P_end_total.astype(np.int) - 1
+	one_point_time = 1000 / Fs
+
+	heart_rate = np.array([])
+	P_amplitude = np.array([])
+	P_duration = np.array([])
+	PR_interval = np.array([])
+	QRS_interval = np.array([])
+	QRS_peakTopeak_amplitude = np.array([])
+	QT= np.array([])
+	ST = np.array([])
+	T_amplitude = np.array([])
+
+	for i in range(1,len(R_loc_total)):
+		temp_RRinterval = target_signal_total[R_loc_total[i]] - target_signal_total[R_loc_total[i-1]]
+		QRS_peakTopeak_amplitude = np.append(QRS_peakTopeak_amplitude,temp_RRinterval)
+		temp_heartRate = 60000 / (R_loc_total[i] - R_loc_total[i-1]) * one_point_time
+		heart_rate = np.append(heart_rate,temp_heartRate)
+
+	for i in range(len(P_peak_total)):
+		P_amplitude = np.append(P_amplitude,target_signal_total[i])
+		temp_Pduration = (P_end_total[i] - P_onset_total[i]) * one_point_time
+		P_duration = np.append(P_duration,temp_Pduration)
+
+	for i in range(1,len(Q_loc_total)):
+		temp_PRinterval = (Q_loc_total[i] - P_onset_total[i-1]) * one_point_time
+		PR_interval = np.append(PR_interval,temp_PRinterval)
+
+		temp_QRSinterval = (Q_loc_total[i] - S_loc_total[i])
+		QRS_interval = np.append(QRS_interval,temp_QRSinterval)
+
+	for i in range(len(T_end_total)):
+		temp_QT = (T_end_total[i] - Q_loc_total[i]) * one_point_time
+		QT = np.append(QT,temp_QT)
+
+	for i in range(len(T_onset_total)):
+		temp_ST = (T_onset_total[i] - S_loc_total[i]) * one_point_time
+		ST = np.append(ST,temp_ST)
+
+	QTc = QT * np.sqrt(heart_rate / 60)
+
+	for i in range(len(T_peak_total)):
+		T_amplitude = np.append(T_amplitude,target_signal_total[i])
+
+	return P_amplitude,P_duration,PR_interval,QRS_interval,QRS_peakTopeak_amplitude,QT,QTc,ST,T_amplitude
+
+
+
+
 if __name__ == '__main__':
 	# data = scio.loadmat(sys.argv[1])
 	# data = scio.loadmat('sel48.mat')
@@ -612,8 +670,8 @@ if __name__ == '__main__':
 
 	for processing_ind in range(total_process):
 		offset = (D-1) * (processing_ind - 0)
-		if offset+D <= len(Q_loc_total) - 1:
-			target_signal = target_signal_total[Q_loc_total[offset]:Q_loc_total[offset+D-1] + 1]
+		if offset+D <= len(Q_loc_total):
+			target_signal = target_signal_total[Q_loc_total[offset]:Q_loc_total[offset+D-1]+1]
 		else:
 			print('Warning: the ending beats are not processed.')
 			break
@@ -775,18 +833,20 @@ if __name__ == '__main__':
 		T_end_total = np.append(T_end_total, Q_loc_total[offset] + T_loc + T_limit_right_dis + 2)
 		P_end_total = np.append(P_end_total, Q_loc_total[offset] + P_loc + P_limit_right_dis + 2)
 
-	plt.figure()
-	plt.plot(np.arange(1 / Fs, (len(target_signal_total)+1)/Fs,1/Fs),target_signal_total,'b',linewidth=2)
-	plt.scatter(R_loc_total / Fs, target_signal_total[R_loc_total.astype(np.int)],c='r',edgecolors='black',linewidths=1)
-	# plt.scatter(Q_loc_total / Fs, target_signal_total[Q_loc_total.astype(np.int)],c='r',edgecolors='black',linewidths=1)
-	# plt.scatter(S_loc_total / Fs, target_signal_total[S_loc_total.astype(np.int)],c='r',edgecolors='black',linewidths=1)
-	plt.scatter(T_peak_total / Fs, target_signal_total[T_peak_total.astype(np.int)],c='r',edgecolors='black',linewidths=1)
-	plt.scatter(T_onset_total / Fs, target_signal_total[T_onset_total.astype(np.int)],c='r',edgecolors='black',linewidths=1)
-	plt.scatter(T_end_total / Fs, target_signal_total[T_end_total.astype(np.int)],c='r',edgecolors='black',linewidths=1)
-	plt.scatter(P_peak_total / Fs, target_signal_total[P_peak_total.astype(np.int)],c='r',edgecolors='black',linewidths=1)
-	plt.scatter(P_onset_total / Fs, target_signal_total[P_onset_total.astype(np.int)],c='r',edgecolors='black',linewidths=1)
-	plt.scatter(P_end_total / Fs, target_signal_total[P_end_total.astype(np.int)],c='r',edgecolors='black',linewidths=1)
-	plt.show()
+	# plt.figure()
+	# plt.plot(np.arange(1 / Fs, (len(target_signal_total)+1)/Fs,1/Fs),target_signal_total,'b',linewidth=2)
+	# plt.scatter(R_loc_total / Fs, target_signal_total[R_loc_total.astype(np.int) - 1],c='r',edgecolors='black',linewidths=1)
+	# # plt.scatter(Q_loc_total / Fs, target_signal_total[Q_loc_total.astype(np.int)],c='r',edgecolors='black',linewidths=1)
+	# # plt.scatter(S_loc_total / Fs, target_signal_total[S_loc_total.astype(np.int)],c='r',edgecolors='black',linewidths=1)
+	# plt.scatter(T_peak_total / Fs, target_signal_total[T_peak_total.astype(np.int)- 1],c='r',edgecolors='black',linewidths=1)
+	# plt.scatter(T_onset_total / Fs, target_signal_total[T_onset_total.astype(np.int)- 1],c='r',edgecolors='black',linewidths=1)
+	# plt.scatter(T_end_total / Fs, target_signal_total[T_end_total.astype(np.int)- 1],c='r',edgecolors='black',linewidths=1)
+	# plt.scatter(P_peak_total / Fs, target_signal_total[P_peak_total.astype(np.int)- 1],c='r',edgecolors='black',linewidths=1)
+	# plt.scatter(P_onset_total / Fs, target_signal_total[P_onset_total.astype(np.int)- 1],c='r',edgecolors='black',linewidths=1)
+	# plt.scatter(P_end_total / Fs, target_signal_total[P_end_total.astype(np.int)- 1],c='r',edgecolors='black',linewidths=1)
+	# plt.show()
+	P_amplitude, P_duration, PR_interval, QRS_interval, QRS_peakTopeak_amplitude, QT, QTc, ST, T_amplitude = extractFeatures(target_signal_total,R_loc_total,Q_loc_total,S_loc_total,T_peak_total,T_onset_total,T_end_total,P_onset_total,P_onset_total,P_end_total,Fs)
+
 
 
 
